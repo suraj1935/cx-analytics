@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes import analytics, rca, upload
+from app.routes.mcp_server import mcp      # <-- NEW IMPORT
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -46,6 +47,8 @@ app.include_router(upload.router,    prefix=PREFIX)
 app.include_router(analytics.router, prefix=PREFIX)
 app.include_router(rca.router,       prefix=PREFIX)
 
+# ── MCP Server (SSE transport) ────────────────────────────────────────────────
+app.mount("/mcp", mcp.sse_app())           # <-- NEW MOUNT
 
 # ── Utility routes ────────────────────────────────────────────────────────────
 @app.get("/health", tags=["Health"])
