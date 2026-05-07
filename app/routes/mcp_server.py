@@ -4,7 +4,8 @@ from pathlib import Path
 from app.services.scoring import compute_csat, compute_nps
 from app.services.rca_engine import run_keyword_rca
 
-mcp = FastMCP("CX Analytics MCP Server", version="1.0.0")
+# Create an MCP server instance (no 'version' argument)
+mcp = FastMCP("CX Analytics MCP Server")
 
 DATA_PATH = Path("data/raw_data.csv")
 
@@ -15,7 +16,10 @@ def _load_data():
 
 @mcp.tool()
 def upload_csv_tool(file_path: str) -> str:
-    """Upload a CSV file (local path) to the CX analytics platform."""
+    """
+    Upload a CSV file (provide local file path) to the CX analytics platform.
+    The file must contain 'score' (0-10) and 'feedback' columns.
+    """
     try:
         df = pd.read_csv(file_path)
         df.columns = df.columns.str.strip().str.lower()
@@ -31,17 +35,19 @@ def upload_csv_tool(file_path: str) -> str:
 def get_csat() -> str:
     """Get Customer Satisfaction Score (CSAT) metrics."""
     df = _load_data()
-    return str(compute_csat(df))
+    result = compute_csat(df)
+    return str(result)
 
 @mcp.tool()
 def get_nps() -> str:
     """Get Net Promoter Score (NPS) metrics."""
     df = _load_data()
-    return str(compute_nps(df))
+    result = compute_nps(df)
+    return str(result)
 
 @mcp.tool()
 def get_summary() -> str:
-    """Get combined CSAT, NPS, and score distribution."""
+    """Get a combined CSAT, NPS, and score distribution summary."""
     df = _load_data()
     csat = compute_csat(df)
     nps = compute_nps(df)
@@ -52,4 +58,5 @@ def get_summary() -> str:
 def run_rca() -> str:
     """Run keyword-based Root Cause Analysis on feedback."""
     df = _load_data()
-    return str(run_keyword_rca(df, keywords=None))
+    result = run_keyword_rca(df, limit=50)
+    return str(result)
