@@ -20,7 +20,6 @@ def test_upload_csv(page: Page):
         dt.items.add(file);
         document.querySelector('input[type="file"]').files = dt.files;
     """)
-    # Click the upload button
     page.click("button:has-text('Upload & Process')")
     # Wait for the success message
     success = page.locator("text=✅ File uploaded and stored successfully")
@@ -60,6 +59,5 @@ def test_run_rca(page: Page):
 
     # Run RCA
     page.click("button:has-text('Run RCA')")
-    # The RCA container should show either results or the "No data" message
-    rca_section = page.locator("text=Top Negative Keyword Hits").or_locator(page.locator("text=No data found"))
-    expect(rca_section).to_be_visible(timeout=20000)
+    # Wait for any RCA output (either results or "No data found")
+    page.wait_for_selector(":has-text('Affected Rows'), :has-text('No data found')", timeout=20000)
