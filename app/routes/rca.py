@@ -51,8 +51,9 @@ def keyword_rca(
     - keywords_used    : the keyword list applied
     """
     df = _load()
+    # ✅ FIX: engine only accepts df (and optionally keywords), no 'limit' parameter
     result = run_keyword_rca(df)
-    # Truncate records to limit
+    # Truncate records to the requested limit here, after engine returns all matches
     result["matching_records"] = result["matching_records"][:limit]
     result["keywords_used"] = NEGATIVE_KEYWORDS
     return JSONResponse(content=result)
