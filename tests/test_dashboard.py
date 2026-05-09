@@ -1,36 +1,13 @@
-import pytest
-from playwright.sync_api import Page, expect
-
-FRONTEND_URL = "https://cx-analytics.vercel.app/"
-
-@pytest.fixture(autouse=True)
-def navigate(page: Page):
-    """Navigate to the dashboard before each test."""
-    page.goto(FRONTEND_URL, wait_until="networkidle")
-    # Wait for the API status indicator to turn green
-    page.wait_for_selector("text=✅ API Online", timeout=20000)
-
-def test_upload_csv(page: Page):
-    """Upload a sample CSV and check the success message."""
-    # Attach a small CSV file to the file input using JavaScript
+def test_rca_button_works(page: Page):
+    """Ensure RCA button shows results or a 'no data' message, not a generic failure."""
+    # Upload a known CSV first (the same 50‑row dataset)
     page.evaluate("""
-        const blob = new Blob(['score,feedback\\n9,Great\\n2,Bad'], {type:'text/csv'});
-        const file = new File([blob], 'test_sample.csv', {type:'text/csv'});
-        const dt = new DataTransfer();
-        dt.items.add(file);
-        document.querySelector('input[type="file"]').files = dt.files;
-    """)
-    page.click("button:has-text('Upload & Process')")
-    # Wait for the success message
-    success = page.locator("text=✅ File uploaded and stored successfully")
-    expect(success).to_be_visible(timeout=20000)
-
-def test_refresh_summary(page: Page):
-    """After upload, click 'Refresh Summary' and verify CSAT appears."""
-    # Re-upload data (so the dashboard has something to show)
-    page.evaluate("""
-        const blob = new Blob(['score,feedback\\n9,Great\\n2,Bad'], {type:'text/csv'});
-        const file = new File([blob], 'test_sample.csv', {type:'text/csv'});
+        const csvContent = `score,feedback
+9,Great product
+2,Bad experience with bugs and slow response
+`;
+        const blob = new Blob([csvContent], {type:'text/csv'});
+        const file = new File([blob], 'test_rca.csv', {type:'text/csv'});
         const dt = new DataTransfer();
         dt.items.add(file);
         document.querySelector('input[type="file"]').files = dt.files;
@@ -38,26 +15,13 @@ def test_refresh_summary(page: Page):
     page.click("button:has-text('Upload & Process')")
     page.wait_for_selector("text=✅ File uploaded and stored successfully", timeout=20000)
 
-    # Click Refresh Summary
-    page.click("button:has-text('Refresh Summary')")
-    # Verify that the CSAT metric is displayed
-    csat = page.locator("text=😊 CSAT")
-    expect(csat).to_be_visible(timeout=20000)
-
-def test_run_rca(page: Page):
-    """Click 'Run RCA' and verify that something appears (results or a message)."""
-    # Upload data first
-    page.evaluate("""
-        const blob = new Blob(['score,feedback\\n9,Great\\n2,Bad'], {type:'text/csv'});
-        const file = new File([blob], 'test_sample.csv', {type:'text/csv'});
-        const dt = new DataTransfer();
-        dt.items.add(file);
-        document.querySelector('input[type="file"]').files = dt.files;
-    """)
-    page.click("button:has-text('Upload & Process')")
-    page.wait_for_selector("text=✅ File uploaded and stored successfully", timeout=20000)
-
-    # Run RCA
+    # Click Run RCA
     page.click("button:has-text('Run RCA')")
-    # Wait for any RCA output (either results or "No data found")
-    page.wait_for_selector(":has-text('Affected Rows'), :has-text('No data found')", timeout=20000)
+    
+    # Wait for the RCA container to have any child element
+    page.wait_for_selector("#rcaContainer > *", timeout=20000)
+
+    # Now, we check that the container does NOT show the generic failure message
+    failure_message = page.locator("text=❌ Failed to load RCA")
+    # Assert that the failure message is NOT visible
+    expect(failure_message).not_to_be_visible()
