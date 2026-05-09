@@ -127,7 +127,7 @@
         const resp = await fetch(`${API_BASE}/rca/keyword?limit=50`);
         const data = await resp.json();
         if (!resp.ok) {
-          container.innerHTML = `<span class="red">${data.detail}</span>`;
+          container.innerHTML = `<span class="red">${data.detail || 'Unknown RCA error'}</span>`;
           return;
         }
         const keywords = data.keyword_counts || {};
