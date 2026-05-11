@@ -1,8 +1,10 @@
 from mcp.server.fastmcp import FastMCP
 import pandas as pd
+import io
 from pathlib import Path
 from app.services.scoring import compute_csat, compute_nps
 from app.services.rca_engine import run_keyword_rca
+import httpx
 
 # Create an MCP server instance (no 'version' argument)
 mcp = FastMCP("CX Analytics MCP Server")
@@ -22,12 +24,40 @@ def upload_csv_tool(file_path: str) -> str:
     """
     try:
         df = pd.read_csv(file_path)
+        # Basic validation
         df.columns = df.columns.str.strip().str.lower()
         for col in ['score', 'feedback']:
             if col not in df.columns:
                 return f"Error: CSV must contain '{col}' column."
         df.to_csv(DATA_PATH, index=False)
         return f"Uploaded {len(df)} rows from {file_path}"
+    except Exception as e:
+        return f"Upload failed: {str(e)}"
+
+@mcp.tool()
+async def upload_csv_from_github(url: str) -> str:
+    """
+    Upload a CSV file from a public GitHub raw URL (or any public CSV URL).
+    The file must contain 'score' (0-10) and 'feedback' columns.
+    Example: https://raw.githubusercontent.com/suraj1935/cx-analytics/main/sample.csv
+    """
+    try:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            resp = await client.get(url, timeout=15)
+            resp.raise_for_status()
+            csv_bytes = resp.content
+
+        # Parse the CSV content
+        df = pd.read_csv(io.BytesIO(csv_bytes))
+        df.columns = df.columns.str.strip().str.lower()
+        for col in ['score', 'feedback']:
+            if col not in df.columns:
+                return f"Error: CSV must contain '{col}' column."
+
+        # Store to disk (same place as local upload)
+        DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(DATA_PATH, index=False)
+        return f"Uploaded {len(df)} rows from {url}"
     except Exception as e:
         return f"Upload failed: {str(e)}"
 
@@ -58,5 +88,5 @@ def get_summary() -> str:
 def run_rca() -> str:
     """Run keyword-based Root Cause Analysis on feedback."""
     df = _load_data()
-    result = run_keyword_rca(df, limit=50)
+    result = run_keyword_rca(df)
     return str(result)
