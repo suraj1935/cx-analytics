@@ -50,7 +50,7 @@
   </div>
 
   <script>
-    const API_BASE = 'https://cx-analytics-1zb2.onrender.com/api';
+    const API_BASE = window.API_URL || 'https://cx-analytics-1zb2.onrender.com/api';
 
     // Check API health
     fetch('https://cx-analytics-1zb2.onrender.com/health')
