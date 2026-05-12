@@ -1,33 +1,158 @@
-async function loadRCA() {
-  const container = document.getElementById('rcaContainer');
-  container.innerHTML = 'Loading...';
-  try {
-    const resp = await fetch(`${API_BASE}/rca/keyword?limit=50`);
-    const data = await resp.json();
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CX Analytics Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .section { margin-top: 30px; }
+    .metric-box { display: inline-block; padding: 10px; margin: 10px; background: #f0f0f0; border-radius: 8px; min-width: 150px; }
+    .metric-box h3 { margin: 0 0 5px; font-size: 14px; color: #555; }
+    .metric-box p { margin: 0; font-size: 24px; font-weight: bold; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
+    .status { padding: 10px; }
+    .green { color: green; }
+    .red { color: red; }
+    button { padding: 10px 20px; margin: 5px; }
+    #csvFileInput { margin: 10px 0; }
+    .bar-chart { display: flex; align-items: flex-end; gap: 5px; margin: 10px 0; }
+    .bar { border: 1px solid #aaa; background: #4CAF50; width: 40px; text-align: center; color: white; }
+  </style>
+</head>
+<body>
+  <h1>📊 Customer Experience Analytics</h1>
+  
+  <div id="apiStatus" class="status">Checking API status...</div>
 
-    // Show the server's own message if the response isn't OK
-    if (!resp.ok) {
-      container.innerHTML = `<span class="red">${data.detail || 'Unknown RCA error'}</span>`;
-      return;
+  <!-- CSV Upload -->
+  <div class="section">
+    <h2>📤 Upload CSV Data</h2>
+    <input type="file" id="csvFileInput" accept=".csv">
+    <button onclick="uploadCSV()">Upload &amp; Process</button>
+    <div id="uploadMessage"></div>
+  </div>
+
+  <!-- Analytics -->
+  <div class="section">
+    <h2>📊 CSAT &amp; NPS Summary</h2>
+    <button onclick="loadSummary()">Refresh Summary</button>
+    <div id="analyticsContainer"></div>
+  </div>
+
+  <!-- RCA -->
+  <div class="section">
+    <h2>🔍 Root Cause Analysis</h2>
+    <button onclick="loadRCA()">Run RCA</button>
+    <div id="rcaContainer"></div>
+  </div>
+
+  <script>
+    const API_BASE = 'https://cx-analytics-1zb2.onrender.com/api';
+
+    // Check API health
+    fetch('https://cx-analytics-1zb2.onrender.com/health')
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById('apiStatus').innerHTML = data.status === 'ok' 
+          ? '✅ API Online' : '⚠️ API Problem';
+        document.getElementById('apiStatus').classList.add(data.status === 'ok' ? 'green' : 'red');
+      })
+      .catch(err => {
+        document.getElementById('apiStatus').innerHTML = '❌ API Offline';
+        document.getElementById('apiStatus').classList.add('red');
+      });
+
+    // Upload CSV
+    async function uploadCSV() {
+      const fileInput = document.getElementById('csvFileInput');
+      const file = fileInput.files[0];
+      if (!file) {
+        document.getElementById('uploadMessage').innerHTML = '<span class="red">Please select a CSV file.</span>';
+        return;
+      }
+      const formData = new FormData();
+      formData.append('file', file);
+      document.getElementById('uploadMessage').innerHTML = 'Uploading...';
+      try {
+        const resp = await fetch(`${API_BASE}/upload/`, { method: 'POST', body: formData });
+        const data = await resp.json();
+        if (resp.ok) {
+          document.getElementById('uploadMessage').innerHTML = `✅ ${data.message} (${data.rows_accepted} rows)`;
+        } else {
+          document.getElementById('uploadMessage').innerHTML = `❌ ${data.detail}`;
+        }
+      } catch (err) {
+        document.getElementById('uploadMessage').innerHTML = '❌ Upload failed (network error)';
+      }
     }
 
-    // Success – render the RCA content (unchanged)
-    const keywords = data.keyword_counts || {};
-    const records = data.matching_records || [];
-    const totalMatches = data.total_matches;
-    const totalRecords = data.total_records;
-    const impact = totalRecords ? ((totalMatches / totalRecords) * 100).toFixed(1) : 0;
-    container.innerHTML = `
-      <div class="metric-box"><h3>🚨 Affected Rows</h3><p>${totalMatches}</p></div>
-      <div class="metric-box"><h3>📋 Total Rows</h3><p>${totalRecords}</p></div>
-      <div class="metric-box"><h3>📉 Impact Rate</h3><p>${impact}%</p></div>
-      ${Object.keys(keywords).length ? `<h4>Top Negative Keywords</h4><div class="bar-chart">${Object.entries(keywords).map(([kw, count]) => `<div class="bar" style="height:${count*20}px">${kw}<br>${count}</div>`).join('')}</div>` : '<p>No negative keywords detected.</p>'}
-      ${records.length ? `<h4>Matching Feedback Rows (${records.length})</h4>
-      <table><tr><th>Score</th><th>Feedback</th><th>Matched Keywords</th></tr>
-      ${records.map(r => `<tr><td>${r.score || ''}</td><td>${r.feedback}</td><td>${r.matched_keywords}</td></tr>`).join('')}
-      </table>` : '<p>No matching records found.</p>'}
-    `;
-  } catch (err) {
-    container.innerHTML = '❌ Failed to load RCA';
-  }
-}
+    // Load analytics summary
+    async function loadSummary() {
+      const container = document.getElementById('analyticsContainer');
+      container.innerHTML = 'Loading...';
+      try {
+        const resp = await fetch(`${API_BASE}/analytics/summary`);
+        const data = await resp.json();
+        if (!resp.ok) {
+          container.innerHTML = `<span class="red">${data.detail}</span>`;
+          return;
+        }
+        const csat = data.csat;
+        const nps = data.nps;
+        const dist = data.score_distribution;
+        container.innerHTML = `
+          <div class="metric-box"><h3>😊 CSAT</h3><p>${csat.satisfaction_pct}%</p></div>
+          <div class="metric-box"><h3>⭐ Avg Score</h3><p>${csat.avg_score}</p></div>
+          <div class="metric-box"><h3>📣 NPS</h3><p>${nps.nps_score}</p></div>
+          <div class="metric-box"><h3>📋 Records</h3><p>${data.total_records}</p></div>
+          <h4>CSAT Detail</h4>
+          <p>Satisfied (≥${csat.threshold}): ${csat.satisfied_count} / ${csat.total_count}</p>
+          <h4>NPS Breakdown</h4>
+          <p>Promoters: ${nps.promoter_pct}% (${nps.promoter_count}) | Passives: ${nps.passive_pct}% (${nps.passive_count}) | Detractors: ${nps.detractor_pct}% (${nps.detractor_count})</p>
+          ${Object.keys(dist).length ? `<h4>Score Distribution</h4><div class="bar-chart">${Object.entries(dist).map(([score, count]) => `<div class="bar" style="height:${count*20}px">${score}<br>${count}</div>`).join('')}</div>` : '<p>No distribution data.</p>'}
+        `;
+      } catch (err) {
+        container.innerHTML = '❌ Failed to load analytics';
+      }
+    }
+
+    // Load RCA — WITH GRACEFUL ERROR HANDLING
+    async function loadRCA() {
+      const container = document.getElementById('rcaContainer');
+      container.innerHTML = 'Loading...';
+      try {
+        const resp = await fetch(`${API_BASE}/rca/keyword?limit=50`);
+        const data = await resp.json();
+        
+        // Show server message if not OK
+        if (!resp.ok) {
+          container.innerHTML = `<span class="red">${data.detail || 'Unknown RCA error'}</span>`;
+          return;
+        }
+
+        // Success – render RCA
+        const keywords = data.keyword_counts || {};
+        const records = data.matching_records || [];
+        const totalMatches = data.total_matches;
+        const totalRecords = data.total_records;
+        const impact = totalRecords ? ((totalMatches / totalRecords) * 100).toFixed(1) : 0;
+        container.innerHTML = `
+          <div class="metric-box"><h3>🚨 Affected Rows</h3><p>${totalMatches}</p></div>
+          <div class="metric-box"><h3>📋 Total Rows</h3><p>${totalRecords}</p></div>
+          <div class="metric-box"><h3>📉 Impact Rate</h3><p>${impact}%</p></div>
+          ${Object.keys(keywords).length ? `<h4>Top Negative Keywords</h4><div class="bar-chart">${Object.entries(keywords).map(([kw, count]) => `<div class="bar" style="height:${count*20}px">${kw}<br>${count}</div>`).join('')}</div>` : '<p>No negative keywords detected.</p>'}
+          ${records.length ? `<h4>Matching Feedback Rows (${records.length})</h4>
+          <table><tr><th>Score</th><th>Feedback</th><th>Matched Keywords</th></tr>
+          ${records.map(r => `<tr><td>${r.score || ''}</td><td>${r.feedback}</td><td>${r.matched_keywords}</td></tr>`).join('')}
+          </table>` : '<p>No matching records found.</p>'}
+        `;
+      } catch (err) {
+        container.innerHTML = '❌ Failed to load RCA';
+      }
+    }
+  </script>
+</body>
+</html>
