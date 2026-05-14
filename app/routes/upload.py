@@ -1,34 +1,28 @@
 """
 POST /api/upload/
 Accepts a CSV file, validates required columns, cleans data,
-and persists it to data/raw_data.csv.
+and persists it to Supabase.
 """
 import io
 import logging
-import shutil
-from pathlib import Path
 
 import pandas as pd
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
+from app.db import supabase
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/upload", tags=["Upload"])
 
-DATA_DIR = Path("data")
-RAW_CSV = DATA_DIR / "raw_data.csv"
 REQUIRED_COLUMNS = {"score", "feedback"}
 
-
 def _clean(df: pd.DataFrame) -> pd.DataFrame:
-    """Minimal cleaning: lowercase columns, drop nulls, coerce score."""
     df.columns = df.columns.str.strip().str.lower()
-
     missing = REQUIRED_COLUMNS - set(df.columns)
     if missing:
         raise ValueError(f"CSV is missing required columns: {missing}")
-
     df = df.dropna(subset=list(REQUIRED_COLUMNS))
     df["score"] = pd.to_numeric(df["score"], errors="coerce")
     df = df.dropna(subset=["score"])
@@ -38,11 +32,7 @@ def _clean(df: pd.DataFrame) -> pd.DataFrame:
     df = df.drop_duplicates().reset_index(drop=True)
     return df
 
-
-@router.post(
-    "/",
-    summary="Upload a CSV file (requires 'score' and 'feedback' columns)",
-)
+@router.post("/", summary="Upload a CSV file (requires 'score' and 'feedback' columns)")
 async def upload_csv(file: UploadFile = File(...)) -> JSONResponse:
     if not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only .csv files are accepted.")
@@ -65,15 +55,49 @@ async def upload_csv(file: UploadFile = File(...)) -> JSONResponse:
             detail="No valid rows remain after cleaning. Check score ranges and feedback text.",
         )
 
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    cleaned.to_csv(RAW_CSV, index=False)
-    logger.info("Saved %d rows to %s", len(cleaned), RAW_CSV)
+    # Store the raw file in Supabase Storage
+    try:
+        storage_path = f"uploads/{file.filename}"
+        supabase.storage.from_("cx-uploads").upload(
+            storage_path,
+            raw_bytes,
+            {"content-type": "text/csv"}
+        )
+    except Exception as e:
+        # File already exists? Try with a unique name
+        storage_path = f"uploads/{pd.Timestamp.utcnow().isoformat()}_{file.filename}"
+        supabase.storage.from_("cx-uploads").upload(
+            storage_path,
+            raw_bytes,
+            {"content-type": "text/csv"}
+        )
+
+    # Insert rows into survey_responses
+    rows_inserted = 0
+    for _, row in cleaned.iterrows():
+        supabase.table("survey_responses").insert({
+            "csat_score": int(row["score"]),
+            "verbatim": str(row["feedback"]),
+        }).execute()
+        rows_inserted += 1
+
+    # Log the upload in the uploads table (if you have the table)
+    try:
+        supabase.table("uploads").insert({
+            "filename": file.filename,
+            "row_count": rows_inserted,
+            "storage_path": storage_path,
+        }).execute()
+    except Exception as e:
+        logger.warning(f"Could not log upload: {e}")
+
+    logger.info("Stored %d rows to Supabase", rows_inserted)
 
     return JSONResponse(
         status_code=200,
         content={
             "message": "File uploaded and stored successfully.",
-            "rows_accepted": len(cleaned),
+            "rows_accepted": rows_inserted,
             "columns": list(cleaned.columns),
         },
     )
