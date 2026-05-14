@@ -23,7 +23,7 @@ def _clean(df):
     df = df.drop_duplicates().reset_index(drop=True)
     return df
 
-@router.post("/", summary="Upload CSV (database only, no storage)")
+@router.post("/", summary="Upload CSV (database only)")
 async def upload_csv(file: UploadFile = File(...)):
     if not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only .csv files are accepted.")
@@ -39,10 +39,9 @@ async def upload_csv(file: UploadFile = File(...)):
     if cleaned.empty:
         raise HTTPException(status_code=422, detail="No valid rows after cleaning.")
 
-    # Insert rows into survey_responses
-    records = cleaned.rename(columns={"score": "csat_score", "feedback": "verbatim"}).to_dict(orient="records")
+    # Use 'nps_score' column (0‑10) instead of 'csat_score' (1‑5)
+    records = cleaned.rename(columns={"score": "nps_score", "feedback": "verbatim"}).to_dict(orient="records")
     supabase.table("survey_responses").insert(records).execute()
 
-    # (Optional) log metadata – skip for now
     logger.info("Inserted %d rows into Supabase", len(records))
     return JSONResponse(content={"message": "File uploaded and stored successfully.", "rows_accepted": len(records), "columns": list(cleaned.columns)})
