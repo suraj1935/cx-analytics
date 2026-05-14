@@ -1,35 +1,39 @@
 from mcp.server.fastmcp import FastMCP
 import pandas as pd
 import io
-from pathlib import Path
+from app.db import supabase
 from app.services.scoring import compute_csat, compute_nps
 from app.services.rca_engine import run_keyword_rca
 import httpx
 
-# Create an MCP server instance (no 'version' argument)
 mcp = FastMCP("CX Analytics MCP Server")
 
-DATA_PATH = Path("data/raw_data.csv")
-
 def _load_data():
-    if not DATA_PATH.exists():
+    """Fetch all survey responses from Supabase and return as a DataFrame."""
+    res = supabase.table("survey_responses").select("csat_score", "verbatim").execute()
+    data = res.data
+    if not data:
         raise FileNotFoundError("No data uploaded yet. Use the upload_csv tool first.")
-    return pd.read_csv(DATA_PATH)
+    df = pd.DataFrame(data)
+    df = df.rename(columns={"csat_score": "score", "verbatim": "feedback"})
+    return df
 
 @mcp.tool()
 def upload_csv_tool(file_path: str) -> str:
     """
-    Upload a CSV file (provide local file path) to the CX analytics platform.
+    Upload a local CSV file (provide absolute path) to the CX analytics platform.
     The file must contain 'score' (0-10) and 'feedback' columns.
     """
     try:
         df = pd.read_csv(file_path)
-        # Basic validation
         df.columns = df.columns.str.strip().str.lower()
         for col in ['score', 'feedback']:
             if col not in df.columns:
                 return f"Error: CSV must contain '{col}' column."
-        df.to_csv(DATA_PATH, index=False)
+
+        # Insert rows into Supabase
+        records = df.rename(columns={"score": "csat_score", "feedback": "verbatim"}).to_dict(orient="records")
+        supabase.table("survey_responses").insert(records).execute()
         return f"Uploaded {len(df)} rows from {file_path}"
     except Exception as e:
         return f"Upload failed: {str(e)}"
@@ -37,8 +41,7 @@ def upload_csv_tool(file_path: str) -> str:
 @mcp.tool()
 async def upload_csv_from_github(url: str) -> str:
     """
-    Upload a CSV file from a public GitHub raw URL (or any public CSV URL).
-    The file must contain 'score' (0-10) and 'feedback' columns.
+    Upload a CSV file from a public URL (GitHub raw, etc.).
     Example: https://raw.githubusercontent.com/suraj1935/cx-analytics/main/sample.csv
     """
     try:
@@ -47,16 +50,14 @@ async def upload_csv_from_github(url: str) -> str:
             resp.raise_for_status()
             csv_bytes = resp.content
 
-        # Parse the CSV content
         df = pd.read_csv(io.BytesIO(csv_bytes))
         df.columns = df.columns.str.strip().str.lower()
         for col in ['score', 'feedback']:
             if col not in df.columns:
                 return f"Error: CSV must contain '{col}' column."
 
-        # Store to disk (same place as local upload)
-        DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
-        df.to_csv(DATA_PATH, index=False)
+        records = df.rename(columns={"score": "csat_score", "feedback": "verbatim"}).to_dict(orient="records")
+        supabase.table("survey_responses").insert(records).execute()
         return f"Uploaded {len(df)} rows from {url}"
     except Exception as e:
         return f"Upload failed: {str(e)}"
