@@ -9,11 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
-from app.routes import analytics, rca, upload
+from app.routes import analytics, rca, upload, audio_upload, chatbot
 from app.routes.mcp_server import mcp
-
-from app.routes import audio_upload
-app.include_router(audio_upload.router, prefix="/api")
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -43,7 +40,6 @@ class CorsErrorMiddleware(BaseHTTPMiddleware):
         try:
             response = await call_next(request)
         except Exception:
-            # Catch any unhandled exception and return a 500 with CORS headers
             response = Response(status_code=500)
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Methods"] = "*"
@@ -63,9 +59,11 @@ app.add_middleware(
 # ── Routers – all mounted under /api ──────────────────────────────────────────
 PREFIX = "/api"
 
-app.include_router(upload.router,    prefix=PREFIX)
-app.include_router(analytics.router, prefix=PREFIX)
-app.include_router(rca.router,       prefix=PREFIX)
+app.include_router(upload.router,       prefix=PREFIX)
+app.include_router(analytics.router,    prefix=PREFIX)
+app.include_router(rca.router,          prefix=PREFIX)
+app.include_router(audio_upload.router, prefix=PREFIX)
+app.include_router(chatbot.router,      prefix=PREFIX)
 
 # ── MCP Server (SSE transport) ────────────────────────────────────────────────
 app.mount("/mcp", mcp.sse_app())
