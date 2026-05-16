@@ -12,6 +12,9 @@ from starlette.responses import Response
 from app.routes import analytics, rca, upload
 from app.routes.mcp_server import mcp
 
+from app.routes import audio_upload
+app.include_router(audio_upload.router, prefix="/api")
+
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
