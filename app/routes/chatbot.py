@@ -17,14 +17,19 @@ async def ask_question(request: ChatRequest):
     if not DEEPSEEK_API_KEY:
         raise HTTPException(status_code=500, detail="DeepSeek API key not configured.")
 
-    # Gather context from Supabase
+    # Gather context from Supabase — use only columns we know exist
     try:
+        # Just get the latest 10 verbatims and scores, no ordering by timestamp
         csat_res = supabase.table("survey_responses").select("csat_score").limit(5).execute()
-        nps_res = supabase.table("survey_responses").select("nps_score").limit(5).execute()
-        verbatim_res = supabase.table("survey_responses").select("verbatim").order("received_at", desc=True).limit(3).execute()
-        context = f"CSAT samples: {csat_res.data}\nNPS samples: {nps_res.data}\nLatest feedback: {verbatim_res.data}"
-    except Exception:
-        context = "No data available."
+        nps_res  = supabase.table("survey_responses").select("nps_score").limit(5).execute()
+        verbatim_res = supabase.table("survey_responses").select("verbatim").limit(3).execute()
+        context = (
+            f"CSAT samples: {csat_res.data}\n"
+            f"NPS samples: {nps_res.data}\n"
+            f"Latest feedback: {verbatim_res.data}"
+        )
+    except Exception as e:
+        context = f"Could not load data: {str(e)}"
 
     prompt = f"""You are a CX analytics assistant for a call centre. Answer using the data below.
 Data:
