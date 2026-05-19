@@ -3,9 +3,7 @@ from fastapi.responses import JSONResponse
 import httpx
 import os
 from app.db import supabase
-
 router = APIRouter(prefix="/upload", tags=["Audio Upload"])
-
 @router.post("/audio")
 async def upload_audio(file: UploadFile = File(...)):
     if not file.filename.lower().endswith(('.wav', '.mp3', '.m4a', '.ogg')):
@@ -13,7 +11,6 @@ async def upload_audio(file: UploadFile = File(...)):
     
     audio_bytes = await file.read()
     
-    # Call Groq Whisper for transcription
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             "https://api.groq.com/openai/v1/audio/transcriptions",
@@ -28,10 +25,6 @@ async def upload_audio(file: UploadFile = File(...)):
         result = resp.json()
         transcript = result.get("text", "")
     
-    # Store transcription as feedback (similar to CSV upload)
-    supabase.table("survey_responses").insert({
-        "verbatim": transcript,
-        # You could also add a dummy score or later use sentiment for score
-    }).execute()
+    supabase.table("survey_responses").insert({"verbatim": transcript}).execute()
     
     return JSONResponse({"transcript": transcript, "message": "Audio transcribed and stored."})
