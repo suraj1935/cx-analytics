@@ -1,0 +1,77 @@
+import { useState, useCallback } from 'react'
+import { apiClient } from '@/services/api'
+
+interface UseApiState<T> {
+  data: T | null
+  loading: boolean
+  error: Error | null
+}
+
+export function useApi<T>(asyncFn: () => Promise<T>, immediate: boolean = true) {
+  const [state, setState] = useState<UseApiState<T>>({
+    data: null,
+    loading: immediate,
+    error: null,
+  })
+
+  const execute = useCallback(async () => {
+    setState({ data: null, loading: true, error: null })
+    try {
+      const result = await asyncFn()
+      setState({ data: result, loading: false, error: null })
+      return result
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error))
+      setState({ data: null, loading: false, error: err })
+      throw err
+    }
+  }, [asyncFn])
+
+  return { ...state, execute }
+}
+
+export function useFileUpload() {
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const upload = useCallback(async (file: File) => {
+    setUploading(true)
+    setError(null)
+    try {
+      return await apiClient.uploadFile(file)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Upload failed'
+      setError(msg)
+      throw err
+    } finally {
+      setUploading(false)
+    }
+  }, [])
+
+  return { upload, uploading, error }
+}
+
+export function useAnalytics() {
+  return useApi(() => apiClient.getAnalytics(), true)
+}
+
+export function useAudioUpload() {
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const upload = useCallback(async (file: File) => {
+    setUploading(true)
+    setError(null)
+    try {
+      return await apiClient.uploadAudio(file)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Audio upload failed'
+      setError(msg)
+      throw err
+    } finally {
+      setUploading(false)
+    }
+  }, [])
+
+  return { upload, uploading, error }
+}
