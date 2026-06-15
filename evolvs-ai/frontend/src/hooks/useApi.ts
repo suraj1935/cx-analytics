@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { apiClient } from '@/services/api'
 
 interface UseApiState<T> {
@@ -23,9 +23,15 @@ export function useApi<T>(asyncFn: () => Promise<T>, immediate: boolean = true) 
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error))
       setState({ data: null, loading: false, error: err })
-      throw err
     }
   }, [asyncFn])
+
+  // Auto-execute on mount when immediate=true
+  useEffect(() => {
+    if (immediate) {
+      execute()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return { ...state, execute }
 }
@@ -53,6 +59,14 @@ export function useFileUpload() {
 
 export function useAnalytics() {
   return useApi(() => apiClient.getAnalytics(), true)
+}
+
+export function useAuditDetails(auditId: string | null) {
+  const fetchDetails = useCallback(() => {
+    if (!auditId) return Promise.resolve([])
+    return apiClient.getAuditDetails(auditId)
+  }, [auditId])
+  return useApi(fetchDetails, !!auditId)
 }
 
 export function useAudioUpload() {

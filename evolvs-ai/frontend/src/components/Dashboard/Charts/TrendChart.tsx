@@ -96,7 +96,6 @@ export default function TrendChart({ audits }: TrendChartProps) {
             verticalAlign="top" 
             height={36} 
             iconType="circle"
-            tick={{ fill: '#4b5563', fontSize: 12, fontWeight: 500 }}
           />
           <Area 
             type="monotone" 

@@ -36,10 +36,17 @@ async def upload_audio(file: UploadFile = File(...)):
         
         logger.info(f"Audio saved: {audio_id}")
         
-        # Mock transcription (replace with Whisper in production)
-        transcript = "Demo transcription: [0:00] This is a sample transcription..."
-        vtt = "WEBVTT\n\n00:00:00.000 --> 00:00:05.000\nDemo transcription"
-        duration = 5.0
+        # Real transcription using WhisperService
+        whisper_service = WhisperService(settings)
+        result = await whisper_service.transcribe_file(audio_path)
+        transcript = result.text
+        # Optionally generate VTT from segments (simple placeholder)
+        vtt = "WEBVTT\n\n"
+        for seg in result.segments:
+            start = int(seg.start * 1000)
+            end = int(seg.end * 1000)
+            vtt += f"{start // 3600000:02}:{(start // 60000) % 60:02}:{(start // 1000) % 60:02}.{start % 1000:03} --> {end // 3600000:02}:{(end // 60000) % 60:02}:{(end // 1000) % 60:02}.{end % 1000:03}\n{seg.text}\n\n"
+        duration = result.duration_seconds or 0
         
         # Save metadata
         metadata = {

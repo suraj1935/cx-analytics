@@ -5,27 +5,43 @@ export interface Audit {
   final_score: number
   system_score: number
   created_at: string
+  [key: string]: any // Allow additional columns from the Excel
 }
 
 export interface Agent {
   agent: string
+  agent_id?: string
   audits: number
-  average_final_score: number
+  completed_audits?: number
   completion_rate: number
+  average_final_score: number
+  average_system_score?: number
+  average_qa_turnaround?: number
+  dispute_rate?: number
   sla_adherence: number
+  [key: string]: any
 }
 
 export interface Parameter {
   criterion_key: string
   label: string
-  failures: number
+  category?: string
+  audits?: number
+  average_score?: number
   pass_rate: number
+  failures: number
+  auto_fails?: number
+  weight?: number
+  [key: string]: any
 }
 
 export interface Reason {
   criterion_key: string
   label: string
   occurrences: number
+  audits?: number
+  failures?: number
+  [key: string]: any
 }
 
 export interface Summary {

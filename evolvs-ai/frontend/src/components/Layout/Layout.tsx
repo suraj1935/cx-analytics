@@ -7,12 +7,13 @@ interface LayoutProps {
   children: React.ReactNode
   currentPage: PageType
   onPageChange: (page: PageType) => void
+  onLogout: () => void
 }
 
-export default function Layout({ children, currentPage, onPageChange }: LayoutProps) {
+export default function Layout({ children, currentPage, onPageChange, onLogout }: LayoutProps) {
   return (
-    <div className="flex h-screen bg-gray-100">
-      <Sidebar currentPage={currentPage} onPageChange={onPageChange} />
+    <div className="flex h-screen bg-gray-100 font-sans">
+      <Sidebar currentPage={currentPage} onPageChange={onPageChange} onLogout={onLogout} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header />
         <main className="flex-1 overflow-auto">

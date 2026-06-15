@@ -10,6 +10,7 @@ export default function DashboardPage() {
 
   const handleUploadSuccess = () => {
     setShowUploadModal(false)
+    // Force DashboardContent to remount and refetch analytics data
     setRefreshKey((prev) => prev + 1)
   }
 

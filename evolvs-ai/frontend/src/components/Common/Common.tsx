@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle, Loader } from 'lucide-react'
+import { AlertCircle, Loader } from 'lucide-react'
 
 export function Loading() {
   return (

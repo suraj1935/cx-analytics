@@ -2,8 +2,8 @@ import { useState, useRef } from 'react'
 import { Card, Error } from '@/components/Common/Common'
 import { useAudioUpload } from '@/hooks/useApi'
 import { 
-  Mic2, Upload, FileAudio, Play, Pause, Clock, 
-  FileText, Download, RotateCcw, Volume2, Calendar, FileDown
+  Mic2, Upload, FileAudio, Clock, 
+  FileText, Download, RotateCcw, Calendar, FileDown
 } from 'lucide-react'
 import { AudioTranscript } from '@/types'
 
@@ -51,7 +51,6 @@ export default function AudioPage() {
   const [activeTab, setActiveTab] = useState<'interactive' | 'raw' | 'text'>('interactive')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
-  const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -83,14 +82,12 @@ export default function AudioPage() {
     if (audioRef.current) {
       audioRef.current.currentTime = seconds
       audioRef.current.play()
-      setIsPlaying(true)
     }
   }
 
   const resetAll = () => {
     setSelectedFile(null)
     setTranscriptData(null)
-    setIsPlaying(false)
     setCurrentTime(0)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
@@ -231,8 +228,6 @@ export default function AudioPage() {
                   ref={audioRef}
                   src={import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL.replace('/api', '')}/data/audio/${transcriptData.id}` : `http://localhost:8000/data/audio/${transcriptData.id}`}
                   onTimeUpdate={() => audioRef.current && setCurrentTime(audioRef.current.currentTime)}
-                  onPlay={() => setIsPlaying(true)}
-                  onPause={() => setIsPlaying(false)}
                   className="w-full mt-2"
                   controls
                 />

@@ -32,6 +32,11 @@ class ApiClient {
     return response.data
   }
 
+  async getAuditDetails(auditId: string): Promise<any[]> {
+    const response = await this.client.get(`/analytics/audit/${auditId}`)
+    return response.data
+  }
+
   async uploadAudio(file: File): Promise<AudioTranscript> {
     const formData = new FormData()
     formData.append('file', file)
