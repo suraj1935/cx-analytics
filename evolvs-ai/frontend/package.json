@@ -11,6 +11,7 @@
     "mcp-test": "python ../backend/scripts/ai_test_orchestrator.py"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.108.2",
     "axios": "^1.6.2",
     "lucide-react": "^0.294.0",
     "react": "^18.2.0",

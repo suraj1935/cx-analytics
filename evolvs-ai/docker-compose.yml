@@ -10,6 +10,8 @@ services:
       - "8000:8000"
     environment:
       - PYTHONUNBUFFERED=1
+    env_file:
+      - ./backend/.env
     volumes:
       - ./backend/app:/app/app
       - ./backend/data:/app/data
@@ -20,11 +22,13 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000/api}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
     container_name: evolvs-ai-frontend
     ports:
-      - "3000:3000"
-    environment:
-      - VITE_API_URL=http://backend:8000/api
+      - "3000:80"
     depends_on:
       - backend
     networks:

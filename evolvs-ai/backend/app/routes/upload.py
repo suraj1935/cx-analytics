@@ -1,26 +1,44 @@
 """File upload endpoints"""
 
 import logging
-from datetime import datetime
+import re
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+
+from app.auth import CurrentUser, get_current_user
+from app.services.analytics_store import save_dataset
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-UPLOAD_DIR = Path("data/uploads")
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+
+
+def _safe_filename(filename: str) -> str:
+    name = Path(filename).name
+    return re.sub(r"[^A-Za-z0-9._-]", "_", name)
+
+
+def _records_from_frame(df: pd.DataFrame) -> list[dict[str, Any]]:
+    safe_df = df.where(pd.notnull(df), None)
+    return safe_df.to_dict("records")
 
 @router.post("/upload/")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(
+    file: UploadFile = File(...),
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """Upload CSV or XLSX file for analysis"""
     
     try:
         if not file.filename:
             raise HTTPException(status_code=400, detail="No filename")
         
-        ext = Path(file.filename).suffix.lower()
+        safe_name = _safe_filename(file.filename)
+        ext = Path(safe_name).suffix.lower()
         if ext not in [".csv", ".xlsx", ".xls"]:
             raise HTTPException(
                 status_code=400,
@@ -29,29 +47,41 @@ async def upload_file(file: UploadFile = File(...)):
         
         # Read file
         content = await file.read()
+        if len(content) > MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File exceeds {MAX_UPLOAD_BYTES // (1024 * 1024)}MB upload limit",
+            )
         
         # Parse
+        sheets_payload = {}
         if ext == ".csv":
             df = pd.read_csv(__import__("io").BytesIO(content))
             sheets = ["data"]
+            sheets_payload["data"] = _records_from_frame(df)
         else:
             xls = pd.ExcelFile(__import__("io").BytesIO(content))
             sheets = xls.sheet_names
             df = pd.read_excel(__import__("io").BytesIO(content), sheet_name=0)
+            for sheet_name in sheets:
+                sheet_df = pd.read_excel(__import__("io").BytesIO(content), sheet_name=sheet_name)
+                sheets_payload[sheet_name] = _records_from_frame(sheet_df)
+
+        dataset = save_dataset(
+            user_id=current_user.id,
+            file_name=safe_name,
+            file_type=ext.lstrip("."),
+            rows_processed=len(df),
+            sheets=sheets_payload,
+        )
         
-        # Save file
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        save_path = UPLOAD_DIR / f"{timestamp}_{file.filename}"
-        
-        with open(save_path, "wb") as f:
-            f.write(content)
-        
-        logger.info(f"File uploaded: {file.filename}")
+        logger.info("File uploaded: %s by user %s", safe_name, current_user.id)
         
         return {
             "success": True,
             "message": "File uploaded successfully",
-            "file_name": file.filename,
+            "dataset_id": dataset["id"],
+            "file_name": safe_name,
             "rows_processed": len(df),
             "sheets_found": sheets,
         }

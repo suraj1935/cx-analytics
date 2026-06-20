@@ -62,6 +62,8 @@ export interface AudioTranscript {
   id: string
   file_name: string
   duration: number
+  status?: 'pending' | 'processing' | 'done' | 'failed'
+  error_msg?: string | null
   transcript: string
   vtt_content: string
   created_at: string

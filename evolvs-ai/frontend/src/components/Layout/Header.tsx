@@ -1,6 +1,14 @@
 import { BarChart3 } from 'lucide-react'
+import type { User } from '@supabase/supabase-js'
 
-export default function Header() {
+interface HeaderProps {
+  user: User | null
+}
+
+export default function Header({ user }: HeaderProps) {
+  const displayName = user?.email ?? 'Signed in'
+  const authMode = user?.is_anonymous ? 'Anonymous session' : 'Supabase Auth'
+
   return (
     <header className="bg-white shadow-sm border-b border-gray-200">
       <div className="flex items-center justify-between px-6 py-4">
@@ -14,8 +22,8 @@ export default function Header() {
           </div>
         </div>
         <div className="text-right">
-          <p className="text-sm font-medium text-gray-900">Guest User</p>
-          <p className="text-xs text-gray-500">Demo Mode</p>
+          <p className="text-sm font-medium text-gray-900">{displayName}</p>
+          <p className="text-xs text-gray-500">{authMode}</p>
         </div>
       </div>
     </header>

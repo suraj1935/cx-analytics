@@ -1,38 +1,70 @@
 import { useState, useEffect } from 'react'
+import type { User } from '@supabase/supabase-js'
 import { apiClient } from '@/services/api'
+import { supabase } from '@/services/supabase'
 import Layout from '@/components/Layout/Layout'
 import DashboardPage from '@/components/Dashboard/DashboardPage'
 import AudioPage from '@/components/Audio/AudioPage'
 import LoginPage from '@/components/Auth/LoginPage'
 
 type PageType = 'dashboard' | 'audio'
+const isLocalE2EBypassEnabled = () =>
+  window.location.hostname === '127.0.0.1' &&
+  (
+    window.sessionStorage.getItem('evolvs_e2e_auth') === 'true' ||
+    new URLSearchParams(window.location.search).get('e2e') === '1'
+  )
 
+// ... rest of your React component logic
 export default function App() {
-  const [currentPage, setCurrentPage] = useState<PageType>('dashboard')
+  const [currentPage, setCurrentPage] = useState<PageType>('audio')
   const [apiHealthy, setApiHealthy] = useState(true)
   const [loading, setLoading] = useState(true)
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return localStorage.getItem('evolvs_auth') === 'true'
-  })
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [user, setUser] = useState<User | null>(null)
 
   useEffect(() => {
-    const checkHealth = async () => {
+    const initialize = async () => {
+      if (isLocalE2EBypassEnabled()) {
+        setIsAuthenticated(true)
+        setLoading(false)
+        return
+      }
+
+      const { data } = await supabase.auth.getSession()
+      setIsAuthenticated(Boolean(data.session))
+      setUser(data.session?.user ?? null)
+
       const healthy = await apiClient.healthCheck()
       setApiHealthy(healthy)
       setLoading(false)
     }
 
-    checkHealth()
+    initialize()
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (isLocalE2EBypassEnabled()) {
+        setIsAuthenticated(true)
+        return
+      }
+      setIsAuthenticated(Boolean(session))
+      setUser(session?.user ?? null)
+    })
+
+    return () => {
+      listener.subscription.unsubscribe()
+    }
   }, [])
 
   const handleLoginSuccess = () => {
-    localStorage.setItem('evolvs_auth', 'true')
     setIsAuthenticated(true)
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem('evolvs_auth')
+  const handleLogout = async () => {
+    window.sessionStorage.removeItem('evolvs_e2e_auth')
+    await supabase.auth.signOut()
     setIsAuthenticated(false)
+    setUser(null)
   }
 
   if (loading) {
@@ -51,7 +83,7 @@ export default function App() {
   }
 
   return (
-    <Layout currentPage={currentPage} onPageChange={setCurrentPage} onLogout={handleLogout}>
+    <Layout currentPage={currentPage} onPageChange={setCurrentPage} onLogout={handleLogout} user={user}>
       {!apiHealthy && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
           <p className="text-red-800">⚠️ Cannot connect to API</p>

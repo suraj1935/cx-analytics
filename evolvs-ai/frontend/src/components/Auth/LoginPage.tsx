@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Lock, Mail, ArrowRight, Shield, BarChart3, AlertCircle } from 'lucide-react'
+import { supabase } from '@/services/supabase'
 
 interface LoginPageProps {
   onLoginSuccess: () => void
@@ -11,7 +12,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     
@@ -21,19 +22,31 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
     }
 
     setLoading(true)
-    // Simulate API authentication
-    setTimeout(() => {
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+    if (signInError) {
       setLoading(false)
-      onLoginSuccess()
-    }, 1000)
+      setError(signInError.message)
+      return
+    }
+
+    setLoading(false)
+    onLoginSuccess()
   }
 
-  const handleDemoLogin = () => {
+  const handleDemoLogin = async () => {
+    setError('')
     setLoading(true)
-    setTimeout(() => {
+    const { error: signInError } = await supabase.auth.signInAnonymously()
+    if (signInError) {
       setLoading(false)
-      onLoginSuccess()
-    }, 800)
+      setError(signInError.message)
+      return
+    }
+    setLoading(false)
+    onLoginSuccess()
   }
 
   return (

@@ -1,10 +1,28 @@
 import { useState, useCallback, useEffect } from 'react'
+import axios from 'axios'
 import { apiClient } from '@/services/api'
 
 interface UseApiState<T> {
   data: T | null
   loading: boolean
   error: Error | null
+}
+
+function getApiErrorMessage(error: unknown, fallback: string) {
+  if (!axios.isAxiosError(error)) {
+    return error instanceof Error ? error.message : fallback
+  }
+
+  if (error.response?.status === 401) {
+    return 'Please sign in with a Supabase user before uploading audio.'
+  }
+
+  const detail = error.response?.data?.detail
+  if (typeof detail === 'string') {
+    return detail
+  }
+
+  return error.message || fallback
 }
 
 export function useApi<T>(asyncFn: () => Promise<T>, immediate: boolean = true) {
@@ -46,7 +64,7 @@ export function useFileUpload() {
     try {
       return await apiClient.uploadFile(file)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Upload failed'
+      const msg = getApiErrorMessage(err, 'Upload failed')
       setError(msg)
       throw err
     } finally {
@@ -79,7 +97,7 @@ export function useAudioUpload() {
     try {
       return await apiClient.uploadAudio(file)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Audio upload failed'
+      const msg = getApiErrorMessage(err, 'Audio upload failed')
       setError(msg)
       throw err
     } finally {

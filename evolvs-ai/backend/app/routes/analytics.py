@@ -1,16 +1,16 @@
 """Analytics and dashboard data endpoints"""
 
 import logging
-from pathlib import Path
 from typing import Optional
 
 import pandas as pd
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException
+
+from app.auth import CurrentUser, get_current_user
+from app.services.analytics_store import load_latest_dataset
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-UPLOAD_DIR = Path("data/uploads")
 
 
 def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -23,21 +23,14 @@ def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def _load_latest_file() -> Optional[dict]:
-    """Load most recently uploaded file"""
+def _load_latest_dataset(user_id: str) -> Optional[dict[str, pd.DataFrame]]:
+    """Load the most recent dataset uploaded by the current user."""
     try:
-        files = sorted(UPLOAD_DIR.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True)
-        if not files:
+        sheets = load_latest_dataset(user_id)
+        if not sheets:
             return None
-        
-        latest = files[0]
-        logger.info(f"Loading: {latest.name}")
-        
-        if latest.suffix.lower() == ".csv":
-            return {"data": pd.read_csv(latest)}
-        else:
-            xls = pd.ExcelFile(latest)
-            return {sheet: pd.read_excel(latest, sheet_name=sheet) for sheet in xls.sheet_names}
+
+        return {sheet_name: pd.DataFrame(records) for sheet_name, records in sheets.items()}
     
     except Exception as e:
         logger.error(f"Load error: {str(e)}")
@@ -45,10 +38,10 @@ def _load_latest_file() -> Optional[dict]:
 
 
 @router.get("/analytics")
-async def get_analytics():
+async def get_analytics(current_user: CurrentUser = Depends(get_current_user)):
     """Get complete analytics data"""
     
-    data = _load_latest_file()
+    data = _load_latest_dataset(current_user.id)
     if not data:
         # Return empty structure instead of 404 so dashboard doesn't error
         return {
@@ -139,9 +132,9 @@ async def get_analytics():
 
 
 @router.get("/analytics/summary")
-async def get_summary():
+async def get_summary(current_user: CurrentUser = Depends(get_current_user)):
     """Get summary metrics only"""
-    data = _load_latest_file()
+    data = _load_latest_dataset(current_user.id)
     if not data:
         return {
             "total_audits": 0,
@@ -162,9 +155,13 @@ async def get_summary():
 
 
 @router.get("/analytics/audits")
-async def get_audits(skip: int = Query(0, ge=0), limit: int = Query(20, ge=1, le=100)):
+async def get_audits(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """Get paginated audits"""
-    data = _load_latest_file()
+    data = _load_latest_dataset(current_user.id)
     if not data:
         return []
     
@@ -177,9 +174,12 @@ async def get_audits(skip: int = Query(0, ge=0), limit: int = Query(20, ge=1, le
 
 
 @router.get("/analytics/audit/{audit_id}")
-async def get_audit_details(audit_id: str):
+async def get_audit_details(
+    audit_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """Get parameters and criteria breakdown for a specific audit ID"""
-    data = _load_latest_file()
+    data = _load_latest_dataset(current_user.id)
     if not data:
         raise HTTPException(status_code=404, detail="No dataset uploaded")
     

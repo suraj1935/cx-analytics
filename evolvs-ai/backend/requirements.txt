@@ -4,6 +4,8 @@ uvicorn[standard]>=0.30.0
 pydantic>=2.10.0
 pydantic-settings>=2.1.0
 python-multipart>=0.0.12
+supabase>=2.16.0
+faster-whisper>=1.1.0
 
 # Data Processing
 pandas>=2.2.3
