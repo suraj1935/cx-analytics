@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp"
+    },
+    "evolvs-test-runner": {
+      "command": "python",
+      "args": [
+        "backend/scripts/playwright_mcp_server.py"
+      ]
+    }
+  }
+}
